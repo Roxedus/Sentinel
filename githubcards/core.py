@@ -339,8 +339,7 @@ Finally reload the cog with ``[p]reload githubcards`` and you're set to add in n
                     issue_data_list.append(Formatters.format_issue_class(issue_data))
 
         if not issue_data_list:
-            # Fetching of all issues has failed somehow. So end it here.
-            return
+            await message.add_reaction("🐛")
 
         # --- SENDING ---
         issue_embeds = []
