@@ -8,11 +8,13 @@ import asyncio
 import logging
 import re
 from typing import Any, Dict, Mapping, Optional
+from datetime import datetime
 
 import discord
 from redbot.core import Config, checks, commands
 
 from .converters import RepoData
+from .data import IssueType, SearchData
 from .exceptions import ApiError, Unauthorized
 from .formatters import FetchableReposDict, Formatters, Query
 from .http import GitHubAPI
@@ -227,9 +229,29 @@ Finally reload the cog with ``[p]reload githubcards`` and you're set to add in n
             if message.content.startswith(f"{prefix}#s "):
                 async with message.channel.typing():
                     search_query = message.content.replace(f"{prefix}#s ", "")
-                    search_data = await self.http.search_issues(
-                        data["owner"], data["repo"], search_query
-                    )
+                    if all(issue_type not in search_query for issue_type in ["is:issue", "is:pr", "is:pull-request", "is:pull_request"]):
+                        search_data_issues = await self.http.search_issues(
+                            data["owner"], data["repo"], search_query, type=IssueType.ISSUE
+                        )
+                        search_data_prs = await self.http.search_issues(
+                            data["owner"], data["repo"], search_query, type=IssueType.PULL_REQUEST
+                        )
+                        # truncate the results to 15 based on date
+                        combined_results = search_data_issues.results + search_data_prs.results
+                        for result in combined_results:
+                            result["createdAt"] = datetime.strptime(result['createdAt'], '%Y-%m-%dT%H:%M:%SZ')
+                        combined_results.sort(key=lambda x: x["createdAt"], reverse=True)
+                        combined_results = combined_results[:15]
+
+                        search_data = SearchData(
+                            total=search_data_issues.total + search_data_prs.total,
+                            results=combined_results,
+                            query=search_query
+                        )
+                    else:
+                        search_data = await self.http.search_issues(
+                            data["owner"], data["repo"], search_query, None
+                        )
                     embed = Formatters.format_search(search_data)
                     await message.channel.send(embed=embed)
                     return
