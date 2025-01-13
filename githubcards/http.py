@@ -69,7 +69,7 @@ class GitHubAPI:
         headers = {
             "Authorization": f"bearer {token}",
             "Content-Type": "application/json",
-            "Accept": "application/vnd.github.shadow-cat-preview+json",
+            "Accept": "application/vnd.github+json",
             "User-Agent": "Py aiohttp - GitHubCards (github.com/Kowlin/sentinel)"
         }
         self._token = token
