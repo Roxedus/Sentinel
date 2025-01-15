@@ -107,12 +107,14 @@ class Queries:
                 nodes {
                     __typename
                     ... on Issue {
+                        createdAt
                         state
                         number
                         title
                         url
                     }
                     ... on PullRequest {
+                        createdAt
                         mergeable
                         isDraft
                         state

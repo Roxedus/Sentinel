@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import datetime
 import logging
-from typing import Any, Callable, Dict, Mapping, Optional
+from typing import Any, Callable, Dict, Mapping, Optional, Literal
 
 import aiohttp
 
 from .calls import Queries
-from .data import SearchData
+from .data import SearchData, IssueType
 from .exceptions import ApiError, Unauthorized
 
 baseUrl = "https://api.github.com/graphql"
@@ -69,7 +69,7 @@ class GitHubAPI:
         headers = {
             "Authorization": f"bearer {token}",
             "Content-Type": "application/json",
-            "Accept": "application/vnd.github.shadow-cat-preview+json",
+            "Accept": "application/vnd.github+json",
             "User-Agent": "Py aiohttp - GitHubCards (github.com/Kowlin/sentinel)"
         }
         self._token = token
@@ -105,7 +105,11 @@ class GitHubAPI:
             )
             return json
 
-    async def search_issues(self, repoOwner: str, repoName: str, searchParam: str):
+    async def search_issues(self, repoOwner: str, repoName: str, searchParam: str, type: Optional[Literal[IssueType.ISSUE, IssueType.PULL_REQUEST]]):
+        if type is IssueType.ISSUE:
+            searchParam = f"{searchParam} is:issue"
+        elif type is IssueType.PULL_REQUEST:
+            searchParam = f"{searchParam} is:pr"
         query = f"repo:{repoOwner}/{repoName} {searchParam}"
         async with self.session.post(
             baseUrl,
