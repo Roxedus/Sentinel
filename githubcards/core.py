@@ -36,6 +36,7 @@ log = logging.getLogger("red.githubcards.core")
 
 class GitHubCards(commands.Cog):
     """GitHub Cards"""
+
     # Oh my god I'm doing it
 
     def __init__(self, bot):
@@ -53,7 +54,7 @@ class GitHubCards(commands.Cog):
         self.http: GitHubAPI = None  # assigned in initialize()
 
     async def initialize(self):
-        """ cache preloading """
+        """cache preloading"""
         await self.rebuild_cache_for_guild()
         await self._create_client()
         self._ready.set()
@@ -69,7 +70,10 @@ class GitHubCards(commands.Cog):
             for guild_id, guild_data in data.items():
                 partial = "|".join(re.escape(prefix) for prefix in guild_data.keys())
                 pattern = re.compile(rf"^({partial})#([0-9]+)$", re.IGNORECASE)
-                self.active_prefix_matchers[int(guild_id)] = {"pattern": pattern, "data": guild_data}
+                self.active_prefix_matchers[int(guild_id)] = {
+                    "pattern": pattern,
+                    "data": guild_data,
+                }
         finally:
             self._ready.set()
 
@@ -99,26 +103,28 @@ class GitHubCards(commands.Cog):
         """Create GitHub API client."""
         self.http = GitHubAPI(token=await self._get_token())
 
-    async def _add_card(self, guild: discord.Guild, prefix: str, owner: str, repo: str) -> str:
-        """Adds new cards to the guild
-        """
+    async def _add_card(
+        self, guild: discord.Guild, prefix: str, owner: str, repo: str
+    ) -> str:
+        """Adds new cards to the guild"""
         try:
             await self.http.validate_repo(owner, repo)
         except ApiError:
-            return 'The provided GitHub repository doesn\'t exist, or is unable to be accessed due to permissions.'
+            return "The provided GitHub repository doesn't exist, or is unable to be accessed due to permissions."
 
         async with self.config.custom("REPO", guild.id).all() as repos:
             if prefix in repos.keys():
-                return 'This prefix already exists in this server. Please use something else.'
+                return "This prefix already exists in this server. Please use something else."
 
             repos[prefix] = {"owner": owner, "repo": repo}
 
         await self.rebuild_cache_for_guild(guild.id)
-        return f"A GitHub repository (``{owner}/{repo}``) added with a prefix ``{prefix}``"
+        return (
+            f"A GitHub repository (``{owner}/{repo}``) added with a prefix ``{prefix}``"
+        )
 
     async def _remove_card(self, guild: discord.Guild, prefix: str) -> str:
-        """Removes a card from the guild
-        """
+        """Removes a card from the guild"""
         await self.config.custom("REPO", guild.id, prefix).clear()
         await self.rebuild_cache_for_guild(guild.id)
 
@@ -150,45 +156,61 @@ class GitHubCards(commands.Cog):
 
         Format for adding a new GitHub repo is "Username/Repository"
         """
-        prefix = prefix.lower()  # Ensure lowering of prefixes, since fuck anything else.
+        prefix = (
+            prefix.lower()
+        )  # Ensure lowering of prefixes, since fuck anything else.
         try:
             owner, repo = github_slug.split("/")
         except ValueError:
-            await ctx.send('Invalid format. Please use ``Username/Repository``.')
+            await ctx.send("Invalid format. Please use ``Username/Repository``.")
             return
 
-        msg = await self._add_card(guild=ctx.guild, prefix=prefix, owner=owner, repo=repo)
+        msg = await self._add_card(
+            guild=ctx.guild, prefix=prefix, owner=owner, repo=repo
+        )
 
         await ctx.send(msg)
 
     @ghc_group.command(name="remove", aliases=["delete"])
     async def remove(self, ctx, prefix: str):
-        """Remove a GitHub repository with its given prefix.
-        """
+        """Remove a GitHub repository with its given prefix."""
         msg = await self._remove_card(guild=ctx.guild, prefix=prefix)
 
         await ctx.send(msg)
 
     @ghc_group.command(name="list")
-    async def list_prefixes(self, ctx):
-        """List all prefixes for GitHub Cards in this server.
-        """
+    async def list_prefixes(self, ctx: commands.Context):
+        """List all prefixes for GitHub Cards in this server."""
         repos = await self.config.custom("REPO", ctx.guild.id).all()
         if not repos:
-            await ctx.send("There are no configured GitHub repositories on this server.")
+            await ctx.send(
+                "There are no configured GitHub repositories on this server."
+            )
             return
         msg = "\n".join(
-            f"``{prefix}``: ``{repo['owner']}/{repo['repo']}``" for prefix, repo in sorted(repos.items())
+            f"``{prefix}``: ``{repo['owner']}/{repo['repo']}``"
+            for prefix, repo in sorted(repos.items())
         )
 
         pages = pagify(msg, delims=("\n"))
-        pages = [{"embed": discord.Embed(description=page, title=f"List of configured prefixes on **{ctx.guild.name}** server:")} for page in pages]
+        pages = [
+            {
+                "embed": discord.Embed(
+                    description=page,
+                    title=f"List of configured prefixes on **{ctx.guild.name}** server:",
+                    color=await self.bot.get_embed_colour(ctx.message),
+                )
+            }
+            for page in pages
+        ]
 
         if len(pages) == 1:
             await ctx.send(**pages[0])
         else:
             selectMenu = len(pages) >= 5 <= 25
-            await SimpleMenu(pages, use_select_menu=selectMenu, use_select_only=selectMenu).start(ctx)
+            await SimpleMenu(
+                pages, use_select_menu=selectMenu, use_select_only=selectMenu
+            ).start(ctx)
 
     @ghc_group.command(name="instructions")
     async def instructions(self, ctx):
@@ -219,7 +241,9 @@ Finally reload the cog with ``[p]reload githubcards`` and you're set to add in n
             and not await self.bot.cog_disabled_in_guild(self, message.guild)
         )
 
-    def get_matcher_by_message(self, message: discord.Message) -> Optional[Dict[str, Any]]:
+    def get_matcher_by_message(
+        self, message: discord.Message
+    ) -> Optional[Dict[str, Any]]:
         """Get matcher from message object.
 
         This also checks if the message is eligible as command and returns None otherwise.
@@ -250,24 +274,44 @@ Finally reload the cog with ``[p]reload githubcards`` and you're set to add in n
             if message.content.startswith(f"{prefix}#s "):
                 async with message.channel.typing():
                     search_query = message.content.replace(f"{prefix}#s ", "")
-                    if all(issue_type not in search_query for issue_type in ["is:issue", "is:pr", "is:pull-request", "is:pull_request"]):
+                    if all(
+                        issue_type not in search_query
+                        for issue_type in [
+                            "is:issue",
+                            "is:pr",
+                            "is:pull-request",
+                            "is:pull_request",
+                        ]
+                    ):
                         search_data_issues = await self.http.search_issues(
-                            data["owner"], data["repo"], search_query, type=IssueType.ISSUE
+                            data["owner"],
+                            data["repo"],
+                            search_query,
+                            type=IssueType.ISSUE,
                         )
                         search_data_prs = await self.http.search_issues(
-                            data["owner"], data["repo"], search_query, type=IssueType.PULL_REQUEST
+                            data["owner"],
+                            data["repo"],
+                            search_query,
+                            type=IssueType.PULL_REQUEST,
                         )
                         # truncate the results to 15 based on date
-                        combined_results = search_data_issues.results + search_data_prs.results
+                        combined_results = (
+                            search_data_issues.results + search_data_prs.results
+                        )
                         for result in combined_results:
-                            result["createdAt"] = datetime.strptime(result['createdAt'], '%Y-%m-%dT%H:%M:%SZ')
-                        combined_results.sort(key=lambda x: x["createdAt"], reverse=True)
+                            result["createdAt"] = datetime.strptime(
+                                result["createdAt"], "%Y-%m-%dT%H:%M:%SZ"
+                            )
+                        combined_results.sort(
+                            key=lambda x: x["createdAt"], reverse=True
+                        )
                         combined_results = combined_results[:15]
 
                         search_data = SearchData(
                             total=search_data_issues.total + search_data_prs.total,
                             results=combined_results,
-                            query=search_query
+                            query=search_query,
                         )
                     else:
                         search_data = await self.http.search_issues(
@@ -290,7 +334,7 @@ Finally reload the cog with ``[p]reload githubcards`` and you're set to add in n
             number = int(match.group(2))
 
             prefix_data = matcher["data"][prefix]
-            name_with_owner = (prefix_data['owner'], prefix_data['repo'])
+            name_with_owner = (prefix_data["owner"], prefix_data["repo"])
 
             # Magical fetching aquesition done.
             # Ensure that the repo exists as a key
@@ -302,9 +346,9 @@ Finally reload the cog with ``[p]reload githubcards`` and you're set to add in n
                     "fetchable_issues": {},  # using dict instead of a set since it's ordered
                 }
             # No need to post card for same issue number from the same repo in one message twice
-            if number in fetchable_repos[name_with_owner]['fetchable_issues']:
+            if number in fetchable_repos[name_with_owner]["fetchable_issues"]:
                 continue
-            fetchable_repos[name_with_owner]['fetchable_issues'][number] = None
+            fetchable_repos[name_with_owner]["fetchable_issues"][number] = None
 
         if len(fetchable_repos) == 0:
             return  # End if no repos are found to query over.
@@ -313,7 +357,15 @@ Finally reload the cog with ``[p]reload githubcards`` and you're set to add in n
             await self._query_and_post(message, fetchable_repos)
 
     @commands.Cog.listener()
-    async def on_kowlin_ghc_add(self, *, guild: discord.Guild, owner: str, repo: str, prefix:str, **_kwargs: Any):
+    async def on_kowlin_ghc_add(
+        self,
+        *,
+        guild: discord.Guild,
+        owner: str,
+        repo: str,
+        prefix: str,
+        **_kwargs: Any,
+    ):
         """Sets up listener for new repos
 
         Can be dispatch like
@@ -330,7 +382,9 @@ Finally reload the cog with ``[p]reload githubcards`` and you're set to add in n
         log.info(msg)
 
     @commands.Cog.listener()
-    async def on_kowlin_ghc_remove(self, *, guild: discord.Guild, prefix:str, **_kwargs: Any):
+    async def on_kowlin_ghc_remove(
+        self, *, guild: discord.Guild, prefix: str, **_kwargs: Any
+    ):
         """Sets up listener for removal of repos
 
         Can be dispatch like
@@ -374,7 +428,9 @@ Finally reload the cog with ``[p]reload githubcards`` and you're set to add in n
                 issue_embeds.append(e)
                 continue
             else:
-                overflow.append(f"[{issue.name_with_owner}#{issue.number}]({issue.url})")
+                overflow.append(
+                    f"[{issue.name_with_owner}#{issue.number}]({issue.url})"
+                )
 
         for embed in issue_embeds:
             await message.channel.send(embed=embed)
